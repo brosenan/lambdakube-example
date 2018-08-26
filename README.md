@@ -21,6 +21,9 @@ Feel free to change the configuration
 in [core.clj](src/lambdakube_example/core.clj) and see how it affects
 the cluster.
 
+To view the application running, run `kubectl proxy`, and follow 
+[this link](http://127.0.0.1:8001/api/v1/namespaces/default/services/frontend/proxy/) in a browser.
+
 ## License
 
 Copyright © 2018 Boaz Rosenan
