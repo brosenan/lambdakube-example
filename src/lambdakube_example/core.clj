@@ -17,6 +17,11 @@
       (lk/deployment replicas)
       (lk/expose-cluster-ip name (lk/port :redis 6379 6379))))
 
+(defn map-resources [res-list]
+  (->> (for [res res-list]
+         [res (-> res io/resource slurp)])
+       (into {})))
+
 (defn module [$]
   (-> $
       (lk/rule :backend-master []
@@ -41,6 +46,8 @@
                                         :tier :frontend})
                      (lk/add-container :php-redis "gcr.io/google-samples/gb-frontend:v4"
                                        (lk/add-env {}  {:GET_HOST_FROM :dns}))
+                     (lk/add-files-to-container :php-redis :new-gb-fe-files "/var/www/html"
+                                                (map-resources ["index.html" "controllers.js" "guestbook.php"]))
                      (lk/deployment num-replicas)
                      (lk/expose-node-port :frontend (lk/port :php-redis 80)))))))
 
