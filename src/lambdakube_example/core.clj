@@ -1,5 +1,6 @@
 (ns lambdakube-example.core
   (:require [lambdakube.core :as lk]
+            [lambdakube.util :as lku]
             [clojure.java.io :as io]))
 
 (defn redis-master [name labels res]
@@ -51,6 +52,9 @@
                      ;; We load three files from resources and mount them to the container
                      (lk/add-files-to-container :php-redis :new-gb-fe-files "/var/www/html"
                                                 (map-resources ["index.html" "controllers.js" "guestbook.php"]))
+                     ;; Wait for the master and slave to come up
+                     (lku/wait-for-service-port master :redis)
+                     (lku/wait-for-service-port slave :redis)
                      ;; Then we wrap the pod with a deployment, specifying the number of replicas.
                      (lk/deployment num-replicas)
                      ;; Finally, we expose port 80 using a NodePort service.
@@ -63,6 +67,7 @@
 (defn -main []
   (-> (lk/injector)
       module
+      lk/standard-descs
       (lk/get-deployable config)
       lk/to-yaml
       (lk/kube-apply (io/file "guestbook.yaml"))))
