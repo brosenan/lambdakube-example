@@ -24,6 +24,10 @@ the cluster.
 To view the application running, run `kubectl proxy`, and follow 
 [this link](http://127.0.0.1:8001/api/v1/namespaces/default/services/frontend:web/proxy/) in a browser.
 
+## Testing
+This project uses lambda-kube's [testing framework](https://github.com/brosenan/lambda-kube/blob/master/testing.md) 
+for integration tests. To execute them use: ```$ lein test```. The tests themselves can be found [here](https://github.com/brosenan/lambdakube-example/blob/master/test/lambdakube_example/core_test.clj).
+
 ## License
 
 Copyright © 2018 Boaz Rosenan
