@@ -3,23 +3,6 @@
             [lambdakube.util :as lku]
             [clojure.java.io :as io]))
 
-(defn redis-master [name labels res]
-  (-> (lk/pod name labels)
-      (lk/add-container :redis "redis:5.0-rc"
-                        {:resources res})
-      (lk/deployment 1)
-      (lk/expose-cluster-ip name (lk/port :redis :redis 6379 6379))))
-
-(defn redis-slave [name labels res master replicas]
-  (-> (lk/pod name labels)
-      (lk/add-container :redis "redis:5.0-rc"
-                        {:resources res
-                         :args ["--slaveof"
-                                (:hostname master)
-                                (-> master :ports :redis str)]})
-      (lk/deployment replicas)
-      (lk/expose-cluster-ip name (lk/port :redis :redis 6379 6379))))
-
 (defn map-resources [res-list]
   (->> (for [res res-list]
          [res (-> res io/resource slurp)])
@@ -28,22 +11,30 @@
 (defn module [$]
   (-> $
       (lk/rule :backend-master []
-               #(redis-master :redis-master
-                              {:app :redis
-                               :role :master
-                               :tier :backend}
-                              {:requests {:cpu "100m"
-                                          :memory "100Mi"}}))
+               (fn []
+                 (-> (lk/pod :redis-master {:app :redis
+                                            :role :master
+                                            :tier :backend})
+                     (lk/add-container :redis "redis:5.0-rc"
+                                       {:resources {:requests {:cpu "100m"
+                                                               :memory "100Mi"}}})
+                     (lk/deployment 1)
+                     (lk/expose-cluster-ip :redis-master
+                                           (lk/port :redis :redis 6379 6379)))))
       (lk/rule :backend-slave [:backend-master :num-be-slaves]
                (fn [backend-master num-be-slaves]
-                 (redis-slave :redis-slave
-                              {:app :redis
-                               :role :slave
-                               :tier :backend}
-                              {:requests {:cpu "100m"
-                                          :memory "100Mi"}}
-                              backend-master
-                              num-be-slaves)))
+                 (-> (lk/pod :redis-slave {:app :redis
+                                           :role :slave
+                                           :tier :backend})
+                     (lk/add-container :redis "redis:5.0-rc"
+                                       {:resources {:requests {:cpu "100m"
+                                                               :memory "100Mi"}}
+                                        :args ["--slaveof"
+                                               (:hostname backend-master)
+                                               (-> backend-master :ports :redis str)]})
+                     (lk/deployment num-be-slaves)
+                     (lk/expose-cluster-ip :redis-slave
+                                           (lk/port :redis :redis 6379 6379)))))
       (lk/rule :frontend [:backend-master :backend-slave :num-fe-replicas]
                (fn [master slave num-replicas]
                  ;; We start with an empty pod.
