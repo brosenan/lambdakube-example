@@ -5,16 +5,18 @@
 
 (defn redis-master [name labels res]
   (-> (lk/pod name labels)
-      (lk/add-container :redis "k8s.gcr.io/redis:e2e"
+      (lk/add-container :redis "redis:5.0-rc"
                         {:resources res})
       (lk/deployment 1)
       (lk/expose-cluster-ip name (lk/port :redis :redis 6379 6379))))
 
-(defn redis-slave [name labels res replicas]
+(defn redis-slave [name labels res master replicas]
   (-> (lk/pod name labels)
-      (lk/add-container :redis "gcr.io/google_samples/gb-redisslave:v1"
-                        (-> {:resources res}
-                            (lk/add-env {:GET_HOST_FROM :dns})))
+      (lk/add-container :redis "redis:5.0-rc"
+                        {:resources res
+                         :args ["--slaveof"
+                                (:hostname master)
+                                (-> master :ports :redis str)]})
       (lk/deployment replicas)
       (lk/expose-cluster-ip name (lk/port :redis :redis 6379 6379))))
 
@@ -32,14 +34,15 @@
                                :tier :backend}
                               {:requests {:cpu "100m"
                                           :memory "100Mi"}}))
-      (lk/rule :backend-slave [:num-be-slaves]
-               (fn [num-be-slaves]
+      (lk/rule :backend-slave [:backend-master :num-be-slaves]
+               (fn [backend-master num-be-slaves]
                  (redis-slave :redis-slave
                               {:app :redis
                                :role :slave
                                :tier :backend}
                               {:requests {:cpu "100m"
                                           :memory "100Mi"}}
+                              backend-master
                               num-be-slaves)))
       (lk/rule :frontend [:backend-master :backend-slave :num-fe-replicas]
                (fn [master slave num-replicas]
