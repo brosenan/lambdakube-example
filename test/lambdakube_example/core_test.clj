@@ -65,12 +65,10 @@
                           (wget {"cmd" "get"
                                  "key" "foo"}) => "{\"data\": \"bar\"}")])
                       (lk/update-container :test lk/add-env {"FE_BASE_URL" (str "http://"
-                                                                                (-> frontend :hostname name)
+                                                                                (:hostname frontend)
                                                                                 ":"
                                                                                 (-> frontend :ports :web)
-                                                                                "/guestbook.php")})
-                      (update-in [:spec :initContainers 0] assoc :command
-                                 ["sh" "-c" "while ! nc -z frontend 80; do sleep 1; done"]))))))
+                                                                                "/guestbook.php")}))))))
 
 (deftest kubetests
   (is (= (-> (lk/injector)
