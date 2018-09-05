@@ -25,14 +25,16 @@
                        '[[org.clojure/clojure "1.8.0"]
                          ;; Carmine is a Redis client library for Clojure
                          [com.taoensso/carmine "2.18.1"]]
+                       ;; We pass the connection details for the Redis
+                       ;; master and slave, as provided by our
+                       ;; dependencies as constants to the test.
+                       {:master-conn {:pool {} :spec {:host (:hostname master)
+                                                      :port (-> master :ports :redis)}}
+                        :slave-conn {:pool {} :spec {:host (:hostname slave)
+                                                     :port (-> slave :ports :redis)}}}
                        '[(ns main-test
                            (:require [midje.sweet :refer :all]
                                      [taoensso.carmine :as car]))
-                         ;; We inject parameters for the master and
-                         ;; slave as environment variables. Here we
-                         ;; read them.
-                         (def master-conn {:pool {} :spec (read-string (System/getenv "REDIS_MASTER"))})
-                         (def slave-conn {:pool {} :spec (read-string (System/getenv "REDIS_MASTER"))})
                          (fact
                           ;; Set the value in the master.
                           (car/wcar master-conn
@@ -43,14 +45,7 @@
                           ;; Get the value from the slave.
                           (car/wcar slave-conn
                                     (car/with-replies
-                                      (car/get "foo")) => "bar"))])
-                      ;; Inject environment variables containing the
-                      ;; host and port for the master and slave.
-                      (lk/update-container :test lk/add-env
-                                           {:REDIS_MASTER (pr-str {:host (:hostname master)
-                                                                   :port (-> master :ports :redis)})
-                                            :REDIS_SLAVE (pr-str {:host (:hostname slave)
-                                                                  :port (-> slave :ports :redis)})}))))
+                                      (car/get "foo")) => "bar"))]))))
       ;; This tests the PHP code in the frontent. It sets value to a
       ;; key and then queries it.
       (lkt/test :frontend-set-and-get
@@ -66,6 +61,14 @@
                        '[[org.clojure/clojure "1.8.0"]
                          ;; We use clj-http to query the PHP page.
                          [clj-http "3.9.1"]]
+                       ;; We pass the `base-url` to the PHP page as a
+                       ;; constant. Values are based on the `frontend`
+                       ;; dependency.
+                       {:base-url (str "http://"
+                                       (:hostname frontend)
+                                       ":"
+                                       (-> frontend :ports :web)
+                                       "/guestbook.php")}
                        '[(ns main-test
                            (:require [midje.sweet :refer :all]
                                      [clj-http.client :as client]
@@ -74,8 +77,7 @@
                          ;; page, by constructing a URL and making a
                          ;; GET request.
                          (defn wget [query]
-                           (let [base-url (System/getenv "FE_BASE_URL")
-                                 resp (client/get (str base-url "?" (str/join "&" (for [[k v] query]
+                           (let [resp (client/get (str base-url "?" (str/join "&" (for [[k v] query]
                                                                                     (str k "=" v)))))]
                              (when-not (= (:status resp) 200)
                                (throw (Exception. (str "Bad status" (:status resp) ": " (:body resp)))))
@@ -89,13 +91,7 @@
                          ;; Query that value.
                          (fact
                           (wget {"cmd" "get"
-                                 "key" "foo"}) => "{\"data\": \"bar\"}")])
-                      ;; We inject the base URL as an environment variable.
-                      (lk/update-container :test lk/add-env {"FE_BASE_URL" (str "http://"
-                                                                                (:hostname frontend)
-                                                                                ":"
-                                                                                (-> frontend :ports :web)
-                                                                                "/guestbook.php")}))))))
+                                 "key" "foo"}) => "{\"data\": \"bar\"}")]))))))
 
 (deftest kubetests
   (is (= (-> (lk/injector)
